@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -34,7 +35,7 @@
 </head>
 <body>
 
-<h2>🖌️ Advanced Image Annotator</h2>
+<h2>🖌️ Advanced Image Annotator Pro+</h2>
 
 <div id="toolbar">
   <label>Mode:</label>
@@ -43,6 +44,7 @@
     <option value="rect">Rectangle</option>
     <option value="circle">Circle</option>
     <option value="line">Line</option>
+    <option value="arrow">Arrow</option>
     <option value="text">Add Text</option>
     <option value="step">Step Counter</option>
     <option value="move">Move/Resize</option>
@@ -51,203 +53,20 @@
   <input type="color" id="color" value="#ff0000">
   <input type="number" id="size" value="3" min="1" max="20">
   <input type="number" id="fontSize" value="20" min="8" max="72">
-  
+
   <button id="undo">↩️ Undo</button>
-  <button id="clear">Clear</button>
+  <button id="clear">🧹 Clear</button>
   <button id="save">💾 Save PNG</button>
+  <button onclick="window.location.href='annotate_pro_guide.php';">📘 Read Me</button>
 </div>
 
 <div id="canvas-container">
   <canvas id="canvas"></canvas>
 </div>
+<p>💡 Tip: Press <b>Ctrl+V</b> to paste an image, <b>Ctrl+S</b> to save, <b>Delete</b> to remove selected.</p>
 
-<script>
-const canvas = document.getElementById("canvas");
-const container = document.getElementById("canvas-container");
-const ctx = canvas.getContext("2d");
-
-let image = null;
-let drawing = false;
-let startX = 0, startY = 0;
-let objects = [];
-let selectedObject = null;
-let dragOffsetX = 0, dragOffsetY = 0;
-let stepCounter = 1;
-
-const mode = document.getElementById("mode");
-const color = document.getElementById("color");
-const size = document.getElementById("size");
-const fontSize = document.getElementById("fontSize");
-
-function getMousePos(e) {
-  const rect = canvas.getBoundingClientRect();
-  return {
-    x: (e.clientX - rect.left) * (canvas.width / rect.width),
-    y: (e.clientY - rect.top) * (canvas.height / rect.height)
-  };
-}
-
-function redraw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  if (image) ctx.drawImage(image, 0, 0);
-  for (const obj of objects) {
-    ctx.strokeStyle = obj.color;
-    ctx.fillStyle = obj.color;
-    ctx.lineWidth = obj.size;
-    switch (obj.type) {
-      case "rect":
-        ctx.strokeRect(obj.x, obj.y, obj.w, obj.h);
-        break;
-      case "circle":
-        ctx.beginPath();
-        ctx.arc(obj.x, obj.y, obj.r, 0, 2 * Math.PI);
-        ctx.stroke();
-        break;
-      case "line":
-        ctx.beginPath();
-        ctx.moveTo(obj.x1, obj.y1);
-        ctx.lineTo(obj.x2, obj.y2);
-        ctx.stroke();
-        break;
-      case "text":
-        ctx.font = `${obj.fontSize}px Arial`;
-        ctx.fillText(obj.text, obj.x, obj.y);
-        break;
-      case "step":
-        ctx.beginPath();
-        ctx.arc(obj.x, obj.y, 15, 0, 2 * Math.PI);
-        ctx.fillStyle = obj.color;
-        ctx.fill();
-        ctx.fillStyle = "#fff";
-        ctx.font = "bold 14px Arial";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(obj.step, obj.x, obj.y);
-        break;
-      case "free":
-        ctx.beginPath();
-        ctx.moveTo(obj.points[0].x, obj.points[0].y);
-        for (let i = 1; i < obj.points.length; i++)
-          ctx.lineTo(obj.points[i].x, obj.points[i].y);
-        ctx.stroke();
-        break;
-    }
-  }
-}
-
-document.addEventListener("paste", e => {
-  const items = e.clipboardData.items;
-  for (const item of items) {
-    if (item.type.indexOf("image") !== -1) {
-      const blob = item.getAsFile();
-      const img = new Image();
-      const url = URL.createObjectURL(blob);
-      img.onload = function() {
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
-        image = img;
-        objects = [];
-        container.style.width = Math.min(window.innerWidth - 40, img.width) + "px";
-        container.style.height = Math.min(window.innerHeight - 150, img.height) + "px";
-      };
-      img.src = url;
-    }
-  }
-});
-
-canvas.addEventListener("mousedown", e => {
-  const pos = getMousePos(e);
-  startX = pos.x;
-  startY = pos.y;
-  drawing = true;
-
-  if (mode.value === "move") {
-    selectedObject = objects.find(o =>
-      (o.type === "rect" && pos.x >= o.x && pos.x <= o.x + o.w && pos.y >= o.y && pos.y <= o.y + o.h) ||
-      (o.type === "circle" && Math.hypot(o.x - pos.x, o.y - pos.y) <= o.r) ||
-      (o.type === "text" && pos.x >= o.x && pos.x <= o.x + o.text.length * o.fontSize/2 && pos.y <= o.y && pos.y >= o.y - o.fontSize) ||
-      (o.type === "step" && Math.hypot(o.x - pos.x, o.y - pos.y) <= 15)
-    );
-    if (selectedObject) {
-      dragOffsetX = pos.x - (selectedObject.x || selectedObject.x1);
-      dragOffsetY = pos.y - (selectedObject.y || selectedObject.y1);
-    }
-  } else if (mode.value === "draw") {
-    currentFree = { type: "free", color: color.value, size: size.value, points: [{x: pos.x, y: pos.y}] };
-    objects.push(currentFree);
-  }
-});
-
-canvas.addEventListener("mousemove", e => {
-  const pos = getMousePos(e);
-  if (drawing && mode.value === "draw" && currentFree) {
-    currentFree.points.push({x: pos.x, y: pos.y});
-    redraw();
-  }
-  if (drawing && mode.value === "move" && selectedObject) {
-    const dx = pos.x - dragOffsetX;
-    const dy = pos.y - dragOffsetY;
-    selectedObject.x = dx;
-    selectedObject.y = dy;
-    redraw();
-  }
-});
-
-canvas.addEventListener("mouseup", e => {
-  const pos = getMousePos(e);
-  if (!drawing) return;
-  drawing = false;
-
-  switch (mode.value) {
-    case "rect":
-      objects.push({ type: "rect", x: startX, y: startY, w: pos.x - startX, h: pos.y - startY, color: color.value, size: size.value });
-      break;
-    case "circle":
-      const r = Math.hypot(pos.x - startX, pos.y - startY);
-      objects.push({ type: "circle", x: startX, y: startY, r, color: color.value, size: size.value });
-      break;
-    case "line":
-      objects.push({ type: "line", x1: startX, y1: startY, x2: pos.x, y2: pos.y, color: color.value, size: size.value });
-      break;
-  }
-  redraw();
-});
-
-canvas.addEventListener("click", e => {
-  const pos = getMousePos(e);
-  if (mode.value === "text") {
-    const text = prompt("Enter text:");
-    if (text) {
-      objects.push({ type: "text", x: pos.x, y: pos.y, text, color: color.value, fontSize: parseInt(fontSize.value) });
-      redraw();
-    }
-  } else if (mode.value === "step") {
-    objects.push({ type: "step", x: pos.x, y: pos.y, color: color.value, step: stepCounter++ });
-    redraw();
-  }
-});
-
-document.getElementById("undo").addEventListener("click", () => {
-  objects.pop();
-  redraw();
-});
-
-document.getElementById("clear").addEventListener("click", () => {
-  if (image) ctx.drawImage(image, 0, 0);
-  objects = [];
-  stepCounter = 1;
-  redraw();
-});
-
-document.getElementById("save").addEventListener("click", () => {
-  redraw(); // make sure everything is visible
-  const link = document.createElement("a");
-  link.download = "annotated_image.png";
-  link.href = canvas.toDataURL("image/png");
-  link.click();
-});
-</script>
+<!-- ✅ Link the external script correctly -->
+<script src="https://cdn.owa.co.in/owa_annotate_pro_plus_v1.0.js" defer></script>
 
 </body>
 </html>
